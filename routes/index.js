@@ -20,6 +20,36 @@ router.get('/cert', function(req, res, next) {
 	res.render('index', {title: "here is your certificate"});
 })
 
+router.post('/', function(req, res) {
+
+
+  //grab public key from user input
+  var userpublicKey = req.body.publicKey;
+
+  //extract key into something usable for validation
+  var pubKey = r.KEYUTIL.getKey(userpublicKey);
+
+  //grab unsigned CSR for comparison
+  var csr = req.body.csr;
+
+  //grab signed CSR
+  var signedcsr = fs.readFile('../server.txt.sig', function(err, data) {
+  	if (err) {
+  		return console.error(err);
+  	}
+  });
+
+  var verifier = crypto.createVerify('sha256');
+  verifier.update(csr);
+  var success = verifier.verify(pubKey, signedcsr);
+
+
+  console.log(success);
+  
+  
+
+});
+
 /* GET create cert page */
 router.post('/cert', function(req, res, next) {
 	//res.render('index', {title: 'Here is your certificate'});
