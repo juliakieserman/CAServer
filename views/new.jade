@@ -1,0 +1,12 @@
+div
+  form(name='new-csr',method='post')
+    div Name
+        input(id='email',type='text',value='',placeholder='Name',name='username')
+    div Signed CSR
+        input(id='sigCSR',type='text',value='',placeholder='',name='sigCSR')
+    div Public Key
+        input(id='publicKey',type='text',value='',placeholder='',name='publicKey')
+    div CSR
+        input(id='csr',type='text',value='',placeholder='',name='csr')
+    div(data-role='fieldcontain')   
+      input(type='submit',value='Sign Up',data-transition='fade', data-theme='c')
