@@ -4,67 +4,25 @@ var r = require('jsrsasign');
 var pem = require('pem');
 var https = require('https');
 var fs = require('fs');
+var crypto = require('crypto');
+var jwt = require('jsonwebtoken');
 
 
-/* GET home page. */
+/* THIS IS THE ONE THAT IS WORKING. */
 router.get('/', function(req, res, next) {
-  res.render('index', { title: 'Express' });
+  res.render('new', { title: 'Express' });
+
+  
+
 });
-
-/*GET request cert page */
-router.get('/newrequest', function(req, res, next) {
-	res.render('newrequest');
-})
-
-router.get('/cert', function(req, res, next) {
-	res.render('index', {title: "here is your certificate"});
-})
 
 router.post('/', function(req, res) {
 
 
-  //grab public key from user input
-  var userpublicKey = req.body.publicKey;
 
-  //extract key into something usable for validation
-  var pubKey = r.KEYUTIL.getKey(userpublicKey);
-
-  //grab unsigned CSR for comparison
-  var csr = req.body.csr;
-
-  //grab signed CSR
-  var signedcsr = fs.readFile('../server.txt.sig', function(err, data) {
-  	if (err) {
-  		return console.error(err);
-  	}
-  });
-
-  var verifier = crypto.createVerify('sha256');
-  verifier.update(csr);
-  var success = verifier.verify(pubKey, signedcsr);
-
-
-  console.log(success);
-  
-  
-
-});
-
-/* GET create cert page */
-router.post('/cert', function(req, res, next) {
-	//res.render('index', {title: 'Here is your certificate'});
-
-	var caKeyPub = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDCBt+Vyo\
-	Z5z7XaODNsg5vJooX2nax4IS3ywVoXl1glyExWVLyUH1ivSgq6587y4CIq/bGMI8n/M\
-	9shRH2NR24Da79mwOM+ZHycc/1UcJTN1NZfOgf2acCE3u3YZzYuDv6pr6BidFfC2elvh\
-	PZgoh10AM00QwNct3oWhYgTIxTLXOiPr2VZxvRBpiP70myFEECsCFeHJRu+Zm/KMehVu4\
-	z4pFuzr7nWRQhfEdakEkGn6mY54zLdB1kLDG2iX/qnyyi7uk0Dzsb6Ap7iIwA6iCEpOLTe\
-	IYIAWQCsLp2AF43LnALDyfsI5GbJH1QogZJZVrEedfaCEqoa4098Ff22iB+iBUrHynsi63F\
-	Mvv7hjovXB4z6vf/03wWrZKKuhrKNnAwsvM4sYGpbMsqKcgtOF/WwlqisYh5XH2kf0Kv5Am\
-	HbufwUqhfS4uEvkoPxx8gNKK3hDJFR0FnO4dKXOvSwt0iyPd8xOFDC++On45DCNV3H3uycme\
-	hkFFjuMkRE6NdFkp30DUrmEaPnBGAIZ4AvX5yoTpzA1x/Wuz24wU762hUpPk0e8jGfTiOkY\
-	BAmZnT3EgFoaBmmXoYBIXax8HqKvZPo8JaWfUiC4/RBmPIXdAHFIkDzRQirmO/y3zt+QoxE1\
-	CDlFtFZ/QUnKncZkrn7K+D1mbdWs+Pb/sp4NlepP8bRjw== jbk67@georgetown.edu";
+	pem.config({
+		pathOpenSSL: '/usr/local/bin/openssl'
+	});
 
 	var caKeyPEM = "-----BEGIN RSA PRIVATE KEY-----\
 	Proc-Type: 4,ENCRYPTED\
@@ -120,21 +78,62 @@ GPqpxxDcDKf/7yik1gK0QsIFzIPrScbPv/m9DH2hUj5myLppRLkNIvIsZD23OVUH\
 Ou8GtlsPqByODPlhDRPsVKgMAD6q68Bt29J66oE4Gzqnr6r04pDyrPUaBesFkBkd\
 -----END RSA PRIVATE KEY-----\
 ";
-	
-	//extract public key from certificate request
-	//var requestPubKey = KEYUTIL.getKeyFromCSRPEM(csrPEM);
 
-	//get certificate authority's private key
-	var caKey = KEYUTIL.getKey(caKeyPEM);
-	//res.render('Request a Certificate');
-	
-	var cert = new KJUR.asn1x509.Certificate({'prvkeyobj':caKey});
-	cert.sign();
-	var certPEM = cert.getPEMString();
 
-	console.log(certPEM);
+  //grab public key from user input
+  var userpublicKey = req.body.publicKey;
+  userpublicKey = userpublicKey.replace('-----BEGIN PUBLIC KEY-----', '');
+  userpublicKey = userpublicKey.replace('-----END PUBLIC KEY-----', '');
+
+  //extract key into PEM 
+  var pubKey = r.KEYUTIL.getKey(userpublicKey);
+
+  //grab unsigned CSR for comparison
+  var csr = req.body.csr;
+
+  //grab signed CSR
+  var signedcsr = fs.readFile('../server.txt.sig', function(err, data) {
+  	if (err) {
+  		return console.error(err);
+  	}
+  });
+
+  //verify that the signed CSR matches the unsigned verifier
+  var verifier = crypto.createVerify('RSA-SHA256');
+
+  verifier.update(csr);
+
+  var success = verifier.verify(userpublicKey, csr, 'hex');
+
+  //if succesfully validated client
+  //issue a certificate
+  if (success == true)
+  {
+
+  	//get CA private key 
+  	var caKey = r.KEYUTIL.getKey(caKeyPEM);
+
+  	//generate certificate with CA private key
+  	var cert = new KJUR.asn1x509.Certificate({'prvkeyobj':caKey});
+
+  	//sign certificate
+  	cert.sign();
+
+  	//get certificate PEM string
+  	var certPEM = cert.getPEMString();
+
+  	console.log(certPEM);
+  
+  }
+  //otherwise, an error
+  else {
+  	console.log('Error. Invalid CSR');
+  }
+  
 
 });
+
+
 
 module.exports = router;
 
